@@ -35,6 +35,32 @@ darkModeToggle.addEventListener("change", () => {
   localStorage.setItem("darkMode", darkModeToggle.checked ? "on" : "off");
 });
 
+function scrollToFirstError() {
+  const firstError = document.querySelector(".attack-error:not(.d-none)");
+  if (!firstError) return;
+
+  firstError.scrollIntoView({
+    behavior: "smooth",
+    block: "center",
+  });
+}
+
+const errorSummary = document.getElementById("error-summary");
+
+function showErrorSummary(count) {
+  errorSummary.textContent =
+    count === 1
+      ? "⚠️ 1 attack contains an error. Please fix it below."
+      : `⚠️ ${count} attacks contain errors. Please fix them below.`;
+
+  errorSummary.classList.remove("d-none");
+}
+
+function hideErrorSummary() {
+  errorSummary.classList.add("d-none");
+  errorSummary.textContent = "";
+}
+
 // Create attack row
 function createAttackRow(index, isCustomMode) {
   const attackDiv = document.createElement("div");
@@ -86,6 +112,8 @@ function createAttackRow(index, isCustomMode) {
       <div class="col-md-12 text-end mt-2">
             ${actionButtonHtml}
       </div>
+
+      <div class="attack-error text-danger small mt-2 d-none"></div>
 
     </div>
   `;
@@ -212,8 +240,26 @@ function generateAttacks() {
   }
 }
 
+function clearAttackErrors() {
+  document.querySelectorAll(".attack-error").forEach((el) => {
+    el.textContent = "";
+    el.classList.add("d-none");
+  });
+}
+
+function setAttackError(card, message) {
+  const errorEl = card.querySelector(".attack-error");
+  if (!errorEl) return;
+
+  errorEl.textContent = message;
+  errorEl.classList.remove("d-none");
+}
+
 // Collect + calculate
 function collectAttacks() {
+  hideErrorSummary();
+  clearAttackErrors();
+
   const cards = attacksContainer.querySelectorAll(".card");
   if (!cards.length) return null;
 
@@ -224,8 +270,10 @@ function collectAttacks() {
     const starsRaw = card.querySelector(".stars").value;
     const destructionRaw = card.querySelector(".destruction").value;
 
-    // Check missing fields
+    // Missing fields
     if (enemyThRaw === "" || starsRaw === "" || destructionRaw === "") {
+      setAttackError(card, "All fields must be filled in.");
+      showErrorSummary(1);
       return null;
     }
 
@@ -233,26 +281,52 @@ function collectAttacks() {
     const stars = Number(starsRaw);
     const destruction = Number(destructionRaw);
 
-    // Range validation
-    if (
-      enemyTh < 7 ||
-      enemyTh > 18 ||
-      stars < 0 ||
-      stars > 3 ||
-      destruction < 0 ||
-      destruction > 100
-    ) {
+    // General range validation
+    if (enemyTh < 7 || enemyTh > 18) {
+      setAttackError(card, "Enemy Town Hall must be between 7 and 18.");
+      showErrorSummary(1);
       return null;
     }
 
-    // Stars ↔ destruction validation (game rules)
-    if (stars === 3 && destruction !== 100) return null;
+    if (stars < 0 || stars > 3) {
+      setAttackError(card, "Stars must be between 0 and 3.");
+      showErrorSummary(1);
+      return null;
+    }
 
-    if (stars === 2 && (destruction < 50 || destruction >= 100)) return null;
+    if (destruction < 0 || destruction > 100) {
+      setAttackError(card, "Destruction must be between 0% and 100%.");
+      showErrorSummary(1);
+      return null;
+    }
 
-    if (stars === 1 && destruction >= 100) return null;
+    // Game rules: stars ↔ destruction
+    if (stars === 3 && destruction !== 100) {
+      setAttackError(card, "3⭐ attack must be exactly 100% destruction.");
+      showErrorSummary(1);
+      return null;
+    }
 
-    if (stars === 0 && destruction >= 50) return null;
+    if (stars === 2 && (destruction < 50 || destruction >= 100)) {
+      setAttackError(
+        card,
+        "2⭐ attack must be between 50% and 99% destruction."
+      );
+      showErrorSummary(1);
+      return null;
+    }
+
+    if (stars === 1 && destruction >= 100) {
+      setAttackError(card, "1⭐ attack cannot have 100% destruction.");
+      showErrorSummary(1);
+      return null;
+    }
+
+    if (stars === 0 && destruction >= 50) {
+      setAttackError(card, "0⭐ attack must be below 50% destruction.");
+      showErrorSummary(1);
+      return null;
+    }
 
     attacks.push({
       enemyTh,
@@ -267,7 +341,7 @@ function collectAttacks() {
 function calculateResults() {
   const attacks = collectAttacks();
   if (!attacks) {
-    alert("Please fill in all fields for every attack before calculating.");
+    scrollToFirstError();
     return;
   }
 

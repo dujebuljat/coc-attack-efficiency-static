@@ -107,3 +107,21 @@ body.dark #stats-output p,
 body.dark #stats-output h6 {
   color: #e9ecef;
 }
+
+.attack-error {
+  font-size: 0.85rem;
+}
+
+body.dark .attack-error {
+  color: #f1aeb5;
+}
+
+#error-summary {
+  font-size: 0.95rem;
+}
+
+body.dark #error-summary {
+  background-color: #2b2b2b;
+  border-color: #842029;
+  color: #f1aeb5;
+}
