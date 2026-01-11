@@ -1,5 +1,4 @@
 import { LEAGUES, MIN_RANKED_TH, MIN_LEAGUE_BY_TH } from "./constants.js";
-
 import {
   calculateOverallEfficiency,
   getGrade,
@@ -8,153 +7,209 @@ import {
   bestAndWorstAttack,
 } from "./logic.js";
 
-// --- DOM elements ---
+// DOM
 const playerThInput = document.getElementById("player-th");
 const thError = document.getElementById("th-error");
 const leagueSelect = document.getElementById("league-select");
+const customModeCheckbox = document.getElementById("custom-mode");
 const attacksContainer = document.getElementById("attacks-container");
+const addAttackWrapper = document.getElementById("add-attack-wrapper");
+const addAttackBtn = document.getElementById("add-attack-btn");
 const calculateBtn = document.getElementById("calculate-btn");
 const resultsSection = document.getElementById("results");
-
 const avgEfficiencyEl = document.getElementById("avg-efficiency");
 const gradeEl = document.getElementById("grade");
 const statsOutput = document.getElementById("stats-output");
 const legendDisclaimer = document.getElementById("legend-disclaimer");
 
-// --- Helpers ---
+// Helpers
 function clearElement(el) {
   el.innerHTML = "";
 }
 
-// --- Populate leagues based on TH ---
+// Create attack row
+function createAttackRow(index, isCustomMode) {
+  const attackDiv = document.createElement("div");
+  attackDiv.className = "card mb-3 p-3 shadow-sm";
+
+  const actionButtonHtml = isCustomMode
+    ? `
+    <button
+      class="btn btn-sm btn-outline-danger remove-attack"
+      title="Remove attack"
+    >
+      <i class="bi bi-trash"></i>
+    </button>
+  `
+    : `
+    <button
+      class="btn btn-sm btn-outline-secondary clear-attack"
+      title="Clear inputs"
+    >
+      <i class="bi bi-arrow-counterclockwise"></i>
+    </button>
+  `;
+
+  attackDiv.innerHTML = `
+    <h6 class="fw-semibold mb-3">Attack ${index}</h6>
+
+    <div class="row g-2">
+      <div class="col-md-4">
+        <input type="number" class="form-control enemy-th"
+               placeholder="Enemy TH" min="7" max="18">
+      </div>
+
+      <div class="col-md-4">
+        <input type="number" class="form-control stars"
+               placeholder="Stars (0–3)" min="0" max="3">
+      </div>
+
+      <div class="col-md-4">
+        <input type="number" class="form-control destruction"
+               placeholder="Destruction %" min="0" max="100">
+      </div>
+
+      <div class="col-md-12 text-end mt-2">
+            ${actionButtonHtml}
+      </div>
+
+    </div>
+  `;
+
+  const enemyThInput = attackDiv.querySelector(".enemy-th");
+  const playerTh = Number(playerThInput.value);
+  if (playerTh >= 7 && playerTh <= 18) {
+    enemyThInput.value = playerTh;
+  }
+
+  const starsInput = attackDiv.querySelector(".stars");
+  const destructionInput = attackDiv.querySelector(".destruction");
+  const removeBtn = attackDiv.querySelector(".remove-attack");
+  const clearBtn = attackDiv.querySelector(".clear-attack");
+
+  if (removeBtn) {
+    removeBtn.addEventListener("click", () => {
+      attackDiv.remove();
+      renumberAttacks();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      enemyThInput.value = playerThInput.value || "";
+      starsInput.value = "";
+      destructionInput.value = "";
+      destructionInput.disabled = false;
+    });
+  }
+
+  enemyThInput.addEventListener("blur", () => {
+    const value = Number(enemyThInput.value);
+
+    if (!value) return;
+
+    if (value < 7) {
+      enemyThInput.value = 7;
+    } else if (value > 18) {
+      enemyThInput.value = 18;
+    }
+  });
+
+  function sync() {
+    const stars = Number(starsInput.value);
+    const destruction = Number(destructionInput.value);
+
+    if (stars === 3) {
+      destructionInput.value = 100;
+      destructionInput.disabled = true;
+      return;
+    }
+
+    destructionInput.disabled = false;
+
+    if (destruction === 100) {
+      starsInput.value = 3;
+      destructionInput.value = 100;
+      destructionInput.disabled = true;
+    }
+  }
+
+  starsInput.addEventListener("input", sync);
+  destructionInput.addEventListener("input", sync);
+
+  return attackDiv;
+}
+
+function renumberAttacks() {
+  attacksContainer.querySelectorAll(".card").forEach((card, i) => {
+    card.querySelector("h6").textContent = `Attack ${i + 1}`;
+  });
+}
+
+// League logic
 function updateLeagues() {
   clearElement(leagueSelect);
   leagueSelect.innerHTML = `<option value="">Select league</option>`;
 
-  const playerTh = Number(playerThInput.value);
-
-  // Invalid or too low TH
-  if (!playerTh || playerTh < MIN_RANKED_TH) {
+  const th = Number(playerThInput.value);
+  if (!th || th < MIN_RANKED_TH) {
     leagueSelect.disabled = true;
     thError.classList.remove("d-none");
-    clearElement(attacksContainer);
-    legendDisclaimer.classList.add("d-none");
     return;
   }
 
-  // Valid TH
-  leagueSelect.disabled = false;
   thError.classList.add("d-none");
+  leagueSelect.disabled = false;
 
-  const minLeagueNumber = MIN_LEAGUE_BY_TH[playerTh];
+  const minLeague = MIN_LEAGUE_BY_TH[th];
 
   Object.keys(LEAGUES).forEach((league) => {
     if (league === "Legend League") {
-      addLeagueOption(league);
+      leagueSelect.append(new Option(league, league));
       return;
     }
 
-    const leagueNumber = parseInt(league.split(" ").pop(), 10);
-    if (leagueNumber >= minLeagueNumber) {
-      addLeagueOption(league);
+    const num = parseInt(league.split(" ").pop(), 10);
+    if (num >= minLeague) {
+      leagueSelect.append(new Option(league, league));
     }
   });
 }
 
-function addLeagueOption(league) {
-  const option = document.createElement("option");
-  option.value = league;
-  option.textContent = league;
-  leagueSelect.appendChild(option);
-}
-
-// --- Generate attack inputs ---
 function generateAttacks() {
   clearElement(attacksContainer);
-
   const league = leagueSelect.value;
   if (!league) return;
 
-  const attacksCount = LEAGUES[league];
+  legendDisclaimer.classList.toggle("d-none", league !== "Legend League");
 
-  // Legend League disclaimer
-  if (league === "Legend League") {
-    legendDisclaimer.classList.remove("d-none");
-  } else {
-    legendDisclaimer.classList.add("d-none");
-  }
-
-  for (let i = 0; i < attacksCount; i++) {
-    const attackDiv = document.createElement("div");
-    attackDiv.className = "card mb-3 p-3";
-
-    attackDiv.innerHTML = `
-      <h6>Attack ${i + 1}</h6>
-
-      <div class="row g-2">
-        <div class="col-md-4">
-          <input type="number" class="form-control enemy-th"
-                 placeholder="Enemy TH" min="7" max="18">
-        </div>
-
-        <div class="col-md-4">
-          <input type="number" class="form-control stars"
-                 placeholder="Stars (0–3)" min="0" max="3">
-        </div>
-
-        <div class="col-md-4">
-          <input type="number" class="form-control destruction"
-                 placeholder="Destruction %" min="0" max="100">
-        </div>
-      </div>
-    `;
-
-    const starsInput = attackDiv.querySelector(".stars");
-    const destructionInput = attackDiv.querySelector(".destruction");
-
-    function syncStarsAndDestruction() {
-      const stars = Number(starsInput.value);
-      const destruction = Number(destructionInput.value);
-
-      // 3 stars → always 100%
-      if (stars === 3) {
-        destructionInput.value = 100;
-        destructionInput.disabled = true;
-        return;
-      }
-
-      // Not 3 stars anymore
-      destructionInput.disabled = false;
-
-      // 100% → must be 3 stars
-      if (destruction === 100) {
-        starsInput.value = 3;
-        destructionInput.value = 100;
-        destructionInput.disabled = true;
-      }
-    }
-
-    starsInput.addEventListener("input", syncStarsAndDestruction);
-    destructionInput.addEventListener("input", syncStarsAndDestruction);
-
-    attacksContainer.appendChild(attackDiv);
+  for (let i = 1; i <= LEAGUES[league]; i++) {
+    attacksContainer.appendChild(createAttackRow(i, false));
   }
 }
 
-// --- Collect attack data ---
+// Collect + calculate
 function collectAttacks() {
-  const attackCards = attacksContainer.querySelectorAll(".card");
+  const cards = attacksContainer.querySelectorAll(".card");
+  if (!cards.length) return null;
+
   const attacks = [];
 
-  for (const card of attackCards) {
-    const enemyTh = Number(card.querySelector(".enemy-th").value);
-    const stars = Number(card.querySelector(".stars").value);
-    let destruction = Number(card.querySelector(".destruction").value);
+  for (const card of cards) {
+    const enemyThRaw = card.querySelector(".enemy-th").value;
+    const starsRaw = card.querySelector(".stars").value;
+    const destructionRaw = card.querySelector(".destruction").value;
 
-    if (stars === 3) {
-      destruction = 100;
+    // Check missing fields
+    if (enemyThRaw === "" || starsRaw === "" || destructionRaw === "") {
+      return null;
     }
 
+    const enemyTh = Number(enemyThRaw);
+    const stars = Number(starsRaw);
+    const destruction = Number(destructionRaw);
+
+    // Range validation
     if (
       enemyTh < 7 ||
       enemyTh > 18 ||
@@ -176,68 +231,101 @@ function collectAttacks() {
   return attacks;
 }
 
-// --- Calculate results ---
 function calculateResults() {
-  const playerTh = Number(playerThInput.value);
   const attacks = collectAttacks();
-
-  if (!leagueSelect.value) {
-    alert("Please select a league first.");
-    return;
-  }
-
   if (!attacks) {
-    alert("Please fill in all attack fields correctly.");
+    alert("Please fill in all fields for every attack before calculating.");
     return;
   }
 
-  const efficiency = calculateOverallEfficiency(attacks, playerTh);
+  const th = Number(playerThInput.value);
+  const efficiency = calculateOverallEfficiency(attacks, th);
   const grade = getGrade(efficiency);
 
   avgEfficiencyEl.textContent = `${efficiency.toFixed(2)}%`;
   gradeEl.textContent = grade;
 
-  // Stats
-  clearElement(statsOutput);
-
   const starsStats = starsBreakdown(attacks);
-  const thStats = thMatchupStats(attacks, playerTh);
-  const { best, worst } = bestAndWorstAttack(attacks, playerTh);
+  const thStats = thMatchupStats(attacks, th);
+  const { best, worst } = bestAndWorstAttack(attacks, th);
 
   statsOutput.innerHTML = `
-    <h5>Stars Breakdown</h5>
-    <p>0⭐: ${starsStats[0]} | 1⭐: ${starsStats[1]} |
-       2⭐: ${starsStats[2]} | 3⭐: ${starsStats[3]}</p>
+  <h6 class="mt-3">Stars Breakdown</h6>
+  <p>
+    ⭐⭐⭐: ${starsStats[3]} |
+    ⭐⭐: ${starsStats[2]} |
+    ⭐: ${starsStats[1]} |
+    0⭐: ${starsStats[0]}
+  </p>
 
-    <h5>TH Matchup</h5>
-    <p>Lower TH: ${thStats.lower.count} attacks,
-       avg ${thStats.lower.average.toFixed(1)}%</p>
-    <p>Equal TH: ${thStats.equal.count} attacks,
-       avg ${thStats.equal.average.toFixed(1)}%</p>
-    <p>Higher TH: ${thStats.higher.count} attacks,
-       avg ${thStats.higher.average.toFixed(1)}%</p>
+  <h6 class="mt-3">TH Matchup</h6>
+  <p>
+    Lower TH: ${thStats.lower.count} attacks,
+    avg ${thStats.lower.average.toFixed(2)}%
+  </p>
+  <p>
+    Equal TH: ${thStats.equal.count} attacks,
+    avg ${thStats.equal.average.toFixed(2)}%
+  </p>
+  <p>
+    Higher TH: ${thStats.higher.count} attacks,
+    avg ${thStats.higher.average.toFixed(2)}%
+  </p>
 
-    <h5>Best Attack</h5>
-    <p>
-      TH ${best.attack.enemyTh},
-      ${best.attack.stars}⭐,
-      ${best.attack.destruction}% →
-      ${best.score.toFixed(1)}
-    </p>
+  <h6 class="mt-3">Best Attack</h6>
+  <p>
+    Enemy TH ${best.attack.enemyTh},
+    ${best.attack.stars}⭐,
+    ${best.attack.destruction}% →
+    <strong>${best.score.toFixed(2)}</strong>
+  </p>
 
-    <h5>Worst Attack</h5>
-    <p>
-      TH ${worst.attack.enemyTh},
-      ${worst.attack.stars}⭐,
-      ${worst.attack.destruction}% →
-      ${worst.score.toFixed(1)}
-    </p>
-  `;
+  <h6 class="mt-3">Worst Attack</h6>
+  <p>
+    Enemy TH ${worst.attack.enemyTh},
+    ${worst.attack.stars}⭐,
+    ${worst.attack.destruction}% →
+    <strong>${worst.score.toFixed(2)}</strong>
+  </p>
+`;
 
-  resultsSection.classList.remove("hidden");
+  resultsSection.classList.remove("d-none");
 }
 
-// --- Event listeners ---
+// Events
 playerThInput.addEventListener("input", updateLeagues);
 leagueSelect.addEventListener("change", generateAttacks);
 calculateBtn.addEventListener("click", calculateResults);
+
+customModeCheckbox.addEventListener("change", () => {
+  clearElement(attacksContainer);
+  resultsSection.classList.add("d-none");
+
+  if (customModeCheckbox.checked) {
+    leagueSelect.disabled = true;
+    addAttackWrapper.classList.remove("d-none");
+    attacksContainer.appendChild(createAttackRow(1, true));
+  } else {
+    leagueSelect.disabled = false;
+    addAttackWrapper.classList.add("d-none");
+    generateAttacks();
+  }
+});
+
+addAttackBtn.addEventListener("click", () => {
+  attacksContainer.appendChild(
+    createAttackRow(attacksContainer.children.length + 1, true)
+  );
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+  playerThInput.value = "";
+  leagueSelect.value = "";
+  leagueSelect.disabled = true;
+
+  customModeCheckbox.checked = false;
+  addAttackWrapper.classList.add("d-none");
+
+  clearElement(attacksContainer);
+  resultsSection.classList.add("d-none");
+});

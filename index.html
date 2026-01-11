@@ -6,73 +6,118 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!-- Bootstrap CSS -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+
     <link rel="stylesheet" href="./style.css" />
   </head>
-  <body>
-    <main class="container">
-      <h1 class="mb-3">Clash of Clans</h1>
-      <h2 class="mb-4">Attack Efficiency Calculator</h2>
+
+  <body class="bg-light">
+    <main class="container py-4" style="max-width: 900px">
+      <!-- Header -->
+      <div class="mb-4 text-center">
+        <h1 class="fw-bold">Clash of Clans</h1>
+        <h4 class="text-muted">Attack Efficiency Calculator</h4>
+      </div>
 
       <!-- Player setup -->
-      <section class="card">
-        <h3>Player Setup</h3>
+      <section class="card mb-4 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Player Setup</h5>
 
-        <label>
-          Town Hall Level
-          <input
-            type="number"
-            id="player-th"
-            min="7"
-            max="18"
-            placeholder="7–18"
-          />
-          <div id="th-error" class="alert alert-danger d-none mt-2">
-            Ranked mode is available from Town Hall 7 and above.
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="custom-mode" />
+            <label class="form-check-label" for="custom-mode">
+              Use custom number of attacks
+            </label>
           </div>
-        </label>
 
-        <label>
-          League
-          <select id="league-select">
-            <option value="">Select league</option>
-          </select>
-        </label>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Town Hall Level</label>
+              <input
+                type="number"
+                id="player-th"
+                class="form-control"
+                min="7"
+                max="18"
+                placeholder="7–18"
+              />
 
-        <p id="legend-disclaimer" class="hidden">
-          ⚠ Legend League uses daily attacks (8 per day). Enter only today's
-          attacks.
-        </p>
+              <div id="th-error" class="alert alert-danger d-none mt-2">
+                Ranked mode is available from Town Hall 7 and above.
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-3">
+              <label class="form-label">League</label>
+              <select id="league-select" class="form-select" disabled>
+                <option value="">Select league</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="legend-disclaimer" class="alert alert-warning d-none">
+            ⚠ <strong>Legend League</strong> uses daily attacks (8 per day).
+            Enter only today's attacks.
+          </div>
+        </div>
       </section>
 
       <!-- Attacks -->
-      <section class="card">
-        <h3>Attacks</h3>
+      <section class="card mb-4 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Attacks</h5>
 
-        <div id="attacks-container">
-          <!-- Attacks will be generated here -->
+          <div id="attacks-container"></div>
+
+          <div
+            class="d-flex justify-content-end mt-3 d-none"
+            id="add-attack-wrapper"
+          >
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm"
+              id="add-attack-btn"
+            >
+              + Add attack
+            </button>
+          </div>
         </div>
       </section>
 
       <!-- Actions -->
-      <section class="card">
-        <button id="calculate-btn">Calculate Efficiency</button>
+      <section class="card mb-4 shadow-sm">
+        <div class="card-body">
+          <button id="calculate-btn" class="btn btn-primary btn-lg w-100">
+            Calculate Efficiency
+          </button>
+        </div>
       </section>
 
       <!-- Results -->
-      <section class="card hidden" id="results">
-        <h3>Results</h3>
+      <section class="card mb-4 shadow-sm d-none" id="results">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Results</h5>
 
-        <p>
-          <strong>Average Efficiency:</strong> <span id="avg-efficiency"></span>
-        </p>
-        <p><strong>Grade:</strong> <span id="grade"></span></p>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">
+              Average Efficiency:
+              <span id="avg-efficiency" class="fw-bold"></span>
+            </h4>
 
-        <div id="stats-output">
-          <!-- Stats will appear here -->
+            <span id="grade" class="badge bg-success fs-4 px-3 py-2"></span>
+          </div>
+
+          <div id="stats-output"></div>
         </div>
       </section>
     </main>
