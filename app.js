@@ -21,11 +21,19 @@ const avgEfficiencyEl = document.getElementById("avg-efficiency");
 const gradeEl = document.getElementById("grade");
 const statsOutput = document.getElementById("stats-output");
 const legendDisclaimer = document.getElementById("legend-disclaimer");
+const darkModeToggle = document.getElementById("dark-mode-toggle");
+let starsChart = null;
+let thChart = null;
 
 // Helpers
 function clearElement(el) {
   el.innerHTML = "";
 }
+
+darkModeToggle.addEventListener("change", () => {
+  document.body.classList.toggle("dark", darkModeToggle.checked);
+  localStorage.setItem("darkMode", darkModeToggle.checked ? "on" : "off");
+});
 
 // Create attack row
 function createAttackRow(index, isCustomMode) {
@@ -34,6 +42,12 @@ function createAttackRow(index, isCustomMode) {
 
   const actionButtonHtml = isCustomMode
     ? `
+    <button
+      class="btn btn-sm btn-outline-secondary me-2 clear-attack"
+      title="Clear inputs"
+    >
+      <i class="bi bi-arrow-counterclockwise"></i>
+    </button>
     <button
       class="btn btn-sm btn-outline-danger remove-attack"
       title="Remove attack"
@@ -152,6 +166,15 @@ function updateLeagues() {
   leagueSelect.innerHTML = `<option value="">Select league</option>`;
 
   const th = Number(playerThInput.value);
+
+  // If custom mode is ON, league must stay disabled no matter what
+  if (customModeCheckbox.checked) {
+    leagueSelect.disabled = true;
+    leagueSelect.value = "";
+    legendDisclaimer.classList.add("d-none");
+    return;
+  }
+
   if (!th || th < MIN_RANKED_TH) {
     leagueSelect.disabled = true;
     thError.classList.remove("d-none");
@@ -177,6 +200,7 @@ function updateLeagues() {
 }
 
 function generateAttacks() {
+  if (customModeCheckbox.checked) return;
   clearElement(attacksContainer);
   const league = leagueSelect.value;
   if (!league) return;
@@ -221,6 +245,11 @@ function collectAttacks() {
       return null;
     }
 
+    // Stars ↔ destruction validation
+    if (stars === 3 && destruction !== 100) return null;
+    if (stars === 2 && (destruction < 50 || destruction >= 100)) return null;
+    if ((stars === 0 || stars === 1) && destruction >= 100) return null;
+
     attacks.push({
       enemyTh,
       stars,
@@ -244,6 +273,21 @@ function calculateResults() {
 
   avgEfficiencyEl.textContent = `${efficiency.toFixed(2)}%`;
   gradeEl.textContent = grade;
+  gradeEl.className = "badge fs-4 px-3 py-2"; // reset
+
+  switch (grade) {
+    case "S":
+      gradeEl.classList.add("bg-success");
+      break;
+    case "A":
+      gradeEl.classList.add("bg-primary");
+      break;
+    case "B":
+      gradeEl.classList.add("bg-warning", "text-dark");
+      break;
+    default:
+      gradeEl.classList.add("bg-danger");
+  }
 
   const starsStats = starsBreakdown(attacks);
   const thStats = thMatchupStats(attacks, th);
@@ -290,6 +334,75 @@ function calculateResults() {
 `;
 
   resultsSection.classList.remove("d-none");
+  // --- Stars chart ---
+  const starsCtx = document.getElementById("stars-chart").getContext("2d");
+
+  if (starsChart) {
+    starsChart.destroy();
+  }
+
+  starsChart = new Chart(starsCtx, {
+    type: "bar",
+    data: {
+      labels: ["0⭐", "1⭐", "2⭐", "3⭐"],
+      datasets: [
+        {
+          label: "Attacks",
+          data: [starsStats[0], starsStats[1], starsStats[2], starsStats[3]],
+          backgroundColor: ["#dc3545", "#fd7e14", "#ffc107", "#198754"],
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1 },
+        },
+      },
+    },
+  });
+
+  // --- TH Matchup chart ---
+  const thCtx = document.getElementById("th-chart").getContext("2d");
+
+  if (thChart) {
+    thChart.destroy();
+  }
+
+  thChart = new Chart(thCtx, {
+    type: "bar",
+    data: {
+      labels: ["Lower TH", "Equal TH", "Higher TH"],
+      datasets: [
+        {
+          label: "Attacks",
+          data: [
+            thStats.lower.count,
+            thStats.equal.count,
+            thStats.higher.count,
+          ],
+          backgroundColor: ["#0d6efd", "#6c757d", "#20c997"],
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1 },
+        },
+      },
+    },
+  });
 }
 
 // Events
@@ -302,6 +415,8 @@ customModeCheckbox.addEventListener("change", () => {
   resultsSection.classList.add("d-none");
 
   if (customModeCheckbox.checked) {
+    leagueSelect.value = "";
+    legendDisclaimer.classList.add("d-none");
     leagueSelect.disabled = true;
     addAttackWrapper.classList.remove("d-none");
     attacksContainer.appendChild(createAttackRow(1, true));
@@ -319,6 +434,12 @@ addAttackBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("DOMContentLoaded", () => {
+  const darkMode = localStorage.getItem("darkMode");
+  if (darkMode === "on") {
+    document.body.classList.add("dark");
+    darkModeToggle.checked = true;
+  }
+
   playerThInput.value = "";
   leagueSelect.value = "";
   leagueSelect.disabled = true;
