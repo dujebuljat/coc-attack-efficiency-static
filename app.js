@@ -245,10 +245,14 @@ function collectAttacks() {
       return null;
     }
 
-    // Stars ↔ destruction validation
+    // Stars ↔ destruction validation (game rules)
     if (stars === 3 && destruction !== 100) return null;
+
     if (stars === 2 && (destruction < 50 || destruction >= 100)) return null;
-    if ((stars === 0 || stars === 1) && destruction >= 100) return null;
+
+    if (stars === 1 && destruction >= 100) return null;
+
+    if (stars === 0 && destruction >= 50) return null;
 
     attacks.push({
       enemyTh,
